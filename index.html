@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>단어찾기 퍼즐</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: 넓은 화면은 왼쪽 퍼즐판, 오른쪽 남은 글자와 단어 목록. 좁은 화면은 남은 글자를 맨 위에 고정한다. */
+:root{
+  color-scheme:light;
+  --bg:#eaf1f3; --panel:#ffffff; --ink:#12232b; --muted:#53666f; --line:#22343d; --hair:#c5d3d8;
+  --accent:#0b7a75; --accent-ink:#ffffff; --soft:#dcebee; --bad:#c0392b; --cell:#ffffff;
+  --display:"Black Han Sans","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{color-scheme:dark; --bg:#0d181d; --panel:#14242b; --ink:#e4eef2; --muted:#93a8b3; --line:#6f8b98; --hair:#2b434d;
+    --accent:#3cc4b9; --accent-ink:#06211f; --soft:#1e343d; --bad:#ff7d6e; --cell:#14242b;}
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--body);padding:20px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:1120px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+h1{font:400 28px/1.2 var(--display);margin:0;overflow-wrap:anywhere;text-wrap:balance}
+.layout{display:grid;gap:20px 32px;grid-template-columns:minmax(0,1fr) minmax(260px,320px);grid-template-areas:"board status" "board words";align-items:start;align-content:start}
+.board{grid-area:board;min-width:0}
+.status{grid-area:status}
+.wordsec{grid-area:words;min-width:0}
+.gridwrap{container-type:inline-size;max-width:760px}
+.grid{display:grid;grid-template-columns:repeat(var(--n,14),minmax(0,1fr));gap:1px;aspect-ratio:1;background:var(--line);border:2px solid var(--line);user-select:none;-webkit-user-select:none;touch-action:none;cursor:pointer}
+.cell{display:grid;place-items:center;background:var(--cell);font-weight:700;line-height:1;font-size:clamp(10px,3.2vw,24px);font-size:calc(100cqw / var(--n,14) * .54);min-width:0;overflow:hidden}
+.cell.found{background:linear-gradient(var(--hl),var(--hl)),var(--cell)}
+.cell.sel{background:var(--accent);color:var(--accent-ink)}
+.cell.bad{background:var(--bad);color:#fff}
+.status{background:var(--panel);border:1.5px solid var(--hair);border-radius:10px;padding:14px 18px}
+.big{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.lbl{font-weight:700;color:var(--muted)}
+.num{font:400 56px/1 var(--display);font-variant-numeric:tabular-nums}
+.unit{font-weight:700;color:var(--muted)}
+.sub{margin:4px 0 10px;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+.btn{font:700 14px/1 var(--body);height:38px;padding:0 14px;border-radius:6px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#showCode{margin-top:12px;width:100%}
+.wordsec h2{font-size:15px;margin:0 0 8px}
+#wl{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+#wl li{padding:5px 12px;border:1.5px solid var(--hair);border-radius:999px;background:var(--panel);font-weight:500;overflow-wrap:anywhere}
+#wl li.masked{color:var(--muted);letter-spacing:.12em}
+#wl li.done{border-color:var(--accent);background:var(--soft);color:var(--muted);text-decoration:line-through;text-decoration-thickness:2px}
+.hint{margin:12px 0 0;font-size:13px;color:var(--muted)}
+.win{position:fixed;inset:0;z-index:20;background:rgba(8,18,22,.62);display:grid;place-items:center;padding:16px}
+.card{width:min(440px,100%);background:var(--panel);border:2px solid var(--accent);border-radius:12px;padding:26px 24px;text-align:center}
+.card h2{font:400 28px/1.2 var(--display);margin:0 0 6px}
+.card p{margin:0 0 16px;color:var(--muted)}
+.code{display:block;font:600 34px/1.2 var(--mono);letter-spacing:.06em;padding:14px 10px;border:1.5px dashed var(--accent);border-radius:8px;background:var(--soft);overflow-wrap:anywhere;user-select:all;-webkit-user-select:all}
+.card .btns{display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+@media (max-width:820px){
+  .layout{grid-template-columns:minmax(0,1fr);grid-template-areas:"status" "board" "words"}
+  .status{position:sticky;top:0;z-index:5;padding:10px 14px}
+  .num{font-size:40px}
+  .sub{margin:2px 0 8px}
+  h1{font-size:23px}
+}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="ttl"></h1>
+    <button type="button" class="btn" id="reset">처음부터</button>
+  </header>
+  <div class="layout">
+    <section class="status" aria-live="polite">
+      <div class="big"><span class="lbl">남은 글자</span><span class="num" id="remL">0</span><span class="unit">자</span></div>
+      <div class="sub" id="remW"></div>
+      <div class="bar" aria-hidden="true"><i id="barfill"></i></div>
+      <button type="button" class="btn primary" id="showCode" hidden>성공 코드 다시 보기</button>
+    </section>
+    <section class="board">
+      <div class="gridwrap"><div class="grid" id="grid" role="application" aria-label="단어찾기 퍼즐판"></div></div>
+    </section>
+    <section class="wordsec">
+      <h2>찾을 단어</h2>
+      <ul id="wl"></ul>
+      <p class="hint">글자를 눌러 끌면 선택됩니다. 시작 글자와 끝 글자를 차례로 눌러도 됩니다. 가로, 세로, 대각선 모두 찾을 수 있습니다.</p>
+    </section>
+  </div>
+</div>
+
+<div class="win" id="win" hidden role="dialog" aria-modal="true" aria-labelledby="winTitle">
+  <div class="card">
+    <h2 id="winTitle">모두 찾았어요</h2>
+    <p>아래 성공 코드를 선생님께 보여 주세요.</p>
+    <span class="code" id="codeText"></span>
+    <div class="btns">
+      <button type="button" class="btn primary" id="copy">코드 복사</button>
+      <button type="button" class="btn" id="closeWin">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var DATA = {"title":"별과 우주 단어찾기 퍼즐","n":15,"grid":[["피","기","성","수","기","허","우","운","추","포","조","디","바","루","흐"],["흐","로","자","간","미","포","리","성","르","창","팽","주","우","부","프"],["조","드","츠","나","물","니","은","사","가","차","비","차","루","버","타"],["단","모","모","러","급","질","하","반","터","흐","초","기","모","가","퍼"],["성","연","티","토","등","히","파","르","코","스","거","브","수","하","은"],["개","피","주","가","대","키","단","성","상","구","니","키","운","시","비"],["산","지","트","시","절","암","스","수","하","거","리","쿠","성","초","트"],["어","그","푸","가","차","자","흑","우","흐","서","조","파","출","어","디"],["루","타","파","다","더","이","오","성","리","서","터","어","방","히","하"],["조","지","다","부","빅","호","디","느","운","시","섹","양","태","트","은"],["디","터","타","뱅","베","리","그","포","로","파","그","트","피","허","선"],["카","기","이","텔","이","기","누","티","기","나","조","히","어","초","나"],["타","론","게","으","너","바","터","서","푸","허","부","부","더","구","대"],["머","우","급","등","기","보","겉","크","키","초","러","저","겔","두","막"],["스","하","허","디","호","주","부","타","느","모","흐","리","하","포","브"]],"words":["연주시차","파섹","태양","베텔게우스","시리우스","리겔","히파르코스","절대등급","겉보기등급","은하수","우리은하","막대나선은하","구상성단","산개성단","성간물질","반사성운","암흑성운","방출성운","우주팽창","빅뱅이론"],"code":"UEFTUy05MTkw","list":"all"};
+  var $ = function(id){ return document.getElementById(id); };
+  var n = DATA.n, grid = DATA.grid;
+  var words = DATA.words.map(function(w){ return Array.from(w); });
+  var totalL = words.reduce(function(s,w){ return s + w.length; }, 0);
+  function dec(s){ try{ return decodeURIComponent(escape(atob(s))); }catch(e){ return s; } }
+  var CODE = dec(DATA.code);
+  document.title = DATA.title;
+  $('ttl').textContent = DATA.title;
+  $('codeText').textContent = CODE;
+
+  var gridEl = $('grid'), cells = [], found = [], selEls = [];
+  var start = null, path = [], dragging = false, tapStart = null, done = false;
+  gridEl.style.setProperty('--n', n);
+  for(var r=0;r<n;r++){
+    for(var c=0;c<n;c++){
+      var d = document.createElement('div');
+      d.className = 'cell';
+      d.textContent = grid[r][c];
+      gridEl.appendChild(d);
+      cells.push(d);
+    }
+  }
+
+  function hue(i){ return 'hsl(' + ((i*47+10)%360) + ' 80% 58% / .5)'; }
+
+  function renderList(){
+    var ul = $('wl'); ul.innerHTML = '';
+    words.forEach(function(w,i){
+      var li = document.createElement('li');
+      var text = w.join('');
+      if(found[i]){ li.className = 'done'; li.textContent = text; }
+      else if(DATA.list === 'all'){ li.textContent = text; }
+      else { li.className = 'masked'; li.textContent = '○'.repeat(w.length) + ' (' + w.length + '글자)'; }
+      ul.appendChild(li);
+    });
+  }
+
+  function update(){
+    var remL = 0, remW = 0;
+    words.forEach(function(w,i){ if(!found[i]){ remL += w.length; remW++; } });
+    $('remL').textContent = remL;
+    $('remW').textContent = '남은 단어 ' + remW + '개 / 전체 ' + words.length + '개';
+    $('barfill').style.width = (totalL ? (100 * (totalL - remL) / totalL) : 0) + '%';
+    renderList();
+    if(remW === 0 && words.length){
+      done = true;
+      $('showCode').hidden = false;
+      setTimeout(function(){ $('win').hidden = false; $('closeWin').focus(); }, 350);
+    }
+  }
+
+  function cellAt(e){
+    var rc = gridEl.getBoundingClientRect();
+    var x = (e.clientX - rc.left) / rc.width, y = (e.clientY - rc.top) / rc.height;
+    if(x < 0 || y < 0 || x >= 1 || y >= 1) return null;
+    return { r: Math.min(n-1, Math.floor(y*n)), c: Math.min(n-1, Math.floor(x*n)) };
+  }
+
+  function snap(a, b){
+    var dr = b.r - a.r, dc = b.c - a.c;
+    if(!dr && !dc) return [a];
+    var step = Math.round(Math.atan2(dr, dc) / (Math.PI/4));
+    var ang = step * Math.PI/4;
+    var sr = Math.round(Math.sin(ang)), sc = Math.round(Math.cos(ang));
+    var proj = (dr*sr + dc*sc) / (sr*sr + sc*sc);
+    var L = Math.max(0, Math.round(proj));
+    var out = [];
+    for(var k=0;k<=L;k++){
+      var rr = a.r + sr*k, cc = a.c + sc*k;
+      if(rr < 0 || rr >= n || cc < 0 || cc >= n) break;
+      out.push({ r: rr, c: cc });
+    }
+    return out;
+  }
+
+  function clearSel(){ selEls.forEach(function(el){ el.classList.remove('sel'); }); selEls = []; }
+  function paint(){
+    clearSel();
+    var list = path.length ? path : (tapStart ? [tapStart] : []);
+    list.forEach(function(p){ var el = cells[p.r*n + p.c]; el.classList.add('sel'); selEls.push(el); });
+  }
+
+  function flashBad(list){
+    var els = list.map(function(p){ return cells[p.r*n + p.c]; });
+    els.forEach(function(el){ el.classList.add('bad'); });
+    setTimeout(function(){ els.forEach(function(el){ el.classList.remove('bad'); }); }, 380);
+  }
+
+  function finish(){
+    var txt = path.map(function(p){ return grid[p.r][p.c]; });
+    var fwd = txt.join(''), rev = txt.slice().reverse().join('');
+    var idx = -1;
+    for(var i=0;i<words.length;i++){
+      if(found[i]) continue;
+      var w = words[i].join('');
+      if(w === fwd || w === rev){ idx = i; break; }
+    }
+    var used = path.slice();
+    path = []; start = null; tapStart = null; clearSel();
+    if(idx >= 0){
+      found[idx] = used;
+      used.forEach(function(p){
+        var el = cells[p.r*n + p.c];
+        el.classList.add('found');
+        el.style.setProperty('--hl', hue(idx));
+      });
+      update();
+    } else {
+      flashBad(used);
+    }
+  }
+
+  gridEl.addEventListener('pointerdown', function(e){
+    if(done) return;
+    var p = cellAt(e); if(!p) return;
+    e.preventDefault();
+    try{ gridEl.setPointerCapture(e.pointerId); }catch(_){}
+    if(tapStart){
+      if(tapStart.r === p.r && tapStart.c === p.c){ tapStart = null; path = []; paint(); return; }
+      path = snap(tapStart, p);
+      dragging = false;
+      finish();
+      return;
+    }
+    dragging = true; start = p; path = [p]; paint();
+  });
+  gridEl.addEventListener('pointermove', function(e){
+    if(!dragging || !start) return;
+    var p = cellAt(e); if(!p) return;
+    path = snap(start, p); paint();
+  });
+  gridEl.addEventListener('pointerup', function(){
+    if(!dragging) return;
+    dragging = false;
+    if(path.length <= 1){ tapStart = start; path = []; paint(); return; }
+    finish();
+  });
+  gridEl.addEventListener('pointercancel', function(){
+    dragging = false; start = null; path = []; tapStart = null; clearSel();
+  });
+
+  $('reset').addEventListener('click', function(){
+    found = []; done = false; start = null; path = []; tapStart = null; clearSel();
+    cells.forEach(function(el){ el.classList.remove('found','bad'); el.style.removeProperty('--hl'); });
+    $('win').hidden = true; $('showCode').hidden = true;
+    update();
+  });
+  $('closeWin').addEventListener('click', function(){ $('win').hidden = true; });
+  $('showCode').addEventListener('click', function(){ $('win').hidden = false; $('closeWin').focus(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') $('win').hidden = true; });
+  $('copy').addEventListener('click', function(){
+    var btn = $('copy');
+    function ok(){ btn.textContent = '복사했어요'; setTimeout(function(){ btn.textContent = '코드 복사'; }, 1600); }
+    function fallback(){
+      try{
+        var rg = document.createRange(); rg.selectNodeContents($('codeText'));
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(rg);
+        if(document.execCommand('copy')) ok();
+      }catch(_){}
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(CODE).then(ok, fallback);
+    } else fallback();
+  });
+
+  update();
+})();
+</script>
+</body>
+</html>
